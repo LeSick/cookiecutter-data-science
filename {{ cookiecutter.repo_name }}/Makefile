@@ -5,10 +5,12 @@
 #################################################################################
 
 PROJECT_DIR := $(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
-BUCKET = {{ cookiecutter.s3_bucket }}
-PROFILE = {{ cookiecutter.aws_profile }}
 PROJECT_NAME = {{ cookiecutter.repo_name }}
-PYTHON_INTERPRETER = {{ cookiecutter.python_interpreter }}
+VENV = {{ cookiecutter.venv }}
+PYTHON = $(VENV)/bin/python3
+DEVICE = {{ cookiecutter.device }}
+DATASET_FOLDER := data/raw/
+PYTHON_INTERPRETER = $(VENV)/bin/python3
 
 ifeq (,$(shell which conda))
 HAS_CONDA=False
@@ -37,22 +39,6 @@ clean:
 ## Lint using flake8
 lint:
 	flake8 src
-
-## Upload Data to S3
-sync_data_to_s3:
-ifeq (default,$(PROFILE))
-	aws s3 sync data/ s3://$(BUCKET)/data/
-else
-	aws s3 sync data/ s3://$(BUCKET)/data/ --profile $(PROFILE)
-endif
-
-## Download Data from S3
-sync_data_from_s3:
-ifeq (default,$(PROFILE))
-	aws s3 sync s3://$(BUCKET)/data/ data/
-else
-	aws s3 sync s3://$(BUCKET)/data/ data/ --profile $(PROFILE)
-endif
 
 ## Set up python interpreter environment
 create_environment:
@@ -141,4 +127,49 @@ help:
 		} \
 		printf "\n"; \
 	}' \
+
+#################################################################################
+# LOCAL WORKSPACE SETUP                                                         #
+#################################################################################
+.PHONY: venv
+venv:
+	python3 -m venv $(VENV)
+	@echo 'Path to Python executable $(shell pwd)/$(PYTHON)'
+
+
+pre_commit_install:
+	@echo "=== Installing pre-commit ==="
+	$(PYTHON) -m pre_commit install
+
+
+install_all: venv
+	@echo "=== Installing common dependencies ==="
+	$(PYTHON) -m pip install -r requirements/requirements-$(DEVICE).txt
+
+	make pre_commit_install
+
+
+fetch_dataset_from_gdrive:
+	# Download dataset from google drive to local folder
+	# Alternative option to get dataset if you don't have access to DVC
+	gdown https://drive.google.com/uc?id=1xiNgtQoOmwEZDkmCGvB7EsezU3kgtLpq -O $(DATASET_FOLDER)/dataset.zip
+	unzip -q $(DATASET_FOLDER)/dataset.zip -d $(DATASET_FOLDER)
+	find $(DATASET_FOLDER) -type f -name '.DS_Store' -delete
+	rm $(DATASET_FOLDER)/dataset.zip
+
+#################################################################################
+# TRAINING                                                                      #
+#################################################################################
+run_training:
+	$(PYTHON) -m src.train
+
+#################################################################################
+# CONTINUOUS INTEGRATION                                                        #
+#################################################################################
+ci_test:
+	$(PYTHON) -m pytest tests
+
+
+ci_static_code_analysis:
+	$(PYTHON) -m pre_commit run --all-files
 	| more $(shell test $(shell uname) = Darwin && echo '--no-init --raw-control-chars')
