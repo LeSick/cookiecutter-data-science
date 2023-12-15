@@ -8,5 +8,5 @@
     "open_source_license": ["MIT", "BSD-3-Clause", "No license file"],
     "python_interpreter": ["python3", "python"],
     "venv": "Environment dir name:",
-    "device": ["cpu", "gpu", "mts"]
+    "device": ["cpu", "gpu", "mps"]
 }
